@@ -1221,7 +1221,7 @@ dependencies = [
 [[package]]
 name = "ricochet-robots"
 version = "0.1.0"
-source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#e65eea6bd68797198865b7e6d034a8bfe5cea0d1"
+source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#9bbbed2800619323da33d2652616ea8aff1663d8"
 dependencies = [
  "async-proto",
  "async-trait",
@@ -1238,7 +1238,7 @@ dependencies = [
 [[package]]
 name = "ricochet-robots-websocket"
 version = "0.1.0"
-source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#e65eea6bd68797198865b7e6d034a8bfe5cea0d1"
+source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#9bbbed2800619323da33d2652616ea8aff1663d8"
 dependencies = [
  "async-proto",
  "derive_more",
