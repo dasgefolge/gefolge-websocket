@@ -11,17 +11,6 @@ dependencies = [
 
 [[package]]
 name = "async-proto"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f90f591ecf152b8559197bd51a2965bc3aa9695bfc4a22ae64f360de0c732220"
-dependencies = [
- "async-proto-derive 0.2.0",
- "derive_more",
- "tokio",
-]
-
-[[package]]
-name = "async-proto"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7caa20d1a352e0cd1981dbc7b235b12d548dfd999ab644bb2ede8620d775db19"
@@ -34,12 +23,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-proto-derive"
-version = "0.2.0"
+name = "async-proto"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5089a11155a3eb03705db3cdcecd93c43441c64b059383095e040c5e644148b4"
+checksum = "87ed4fedc920c7496a26f0bb8e20efb8eb69b7400bd66fb07740ea03f6516fcc"
 dependencies = [
- "convert_case",
+ "async-proto-derive 0.7.0",
+ "derive_more",
+ "futures",
+ "tokio",
+ "warp",
+]
+
+[[package]]
+name = "async-proto-derive"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bf880a2496d7ec52a2f6b8340a1f38ed8795417f409a1cc083e2ac0f7a437283"
+dependencies = [
  "itertools",
  "proc-macro2",
  "quote",
@@ -48,9 +49,9 @@ dependencies = [
 
 [[package]]
 name = "async-proto-derive"
-version = "0.6.2"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf880a2496d7ec52a2f6b8340a1f38ed8795417f409a1cc083e2ac0f7a437283"
+checksum = "92ea2e6d9406cbb2cf8838b4f38a4888b63e3474723966a8ea8da9a195e09d91"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -183,12 +184,6 @@ name = "collect-mac"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f168712e49987bd2f51cb855c4585999e12b1a0abdff60fea4b81b41f2010264"
-
-[[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "cpuid-bool"
@@ -1180,28 +1175,24 @@ dependencies = [
 [[package]]
 name = "ricochet-robots"
 version = "0.1.0"
-source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#9bbbed2800619323da33d2652616ea8aff1663d8"
+source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#106cb7627a50932756912bcfcb1b335e1de39d97"
 dependencies = [
- "async-proto 0.2.0",
- "async-trait",
+ "async-proto 0.7.0",
  "collect-mac",
- "derive_more",
  "enum-iterator",
  "futures",
  "quickcheck",
  "rand 0.7.3",
- "smart-default",
  "tokio",
 ]
 
 [[package]]
 name = "ricochet-robots-websocket"
 version = "0.1.0"
-source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#9bbbed2800619323da33d2652616ea8aff1663d8"
+source = "git+https://github.com/dasgefolge/ricochet-robots?branch=main#106cb7627a50932756912bcfcb1b335e1de39d97"
 dependencies = [
- "async-proto 0.2.0",
+ "async-proto 0.7.0",
  "derive_more",
- "enum-iterator",
  "futures",
  "gefolge-web",
  "lazy_static",
@@ -1363,17 +1354,6 @@ name = "smallvec"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
-
-[[package]]
-name = "smart-default"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "133659a15339456eeeb07572eb02a91c91e9815e9cbc89566944d2c8d3efdbf6"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
-]
 
 [[package]]
 name = "socket2"
