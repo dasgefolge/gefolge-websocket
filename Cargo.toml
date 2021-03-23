@@ -10,7 +10,7 @@ pyo3 = "0.13"
 warp = "0.3"
 
 [dependencies.async-proto]
-version = "0.6.2"
+version = "0.7"
 features = ["warp"]
 
 [dependencies.derive_more]
