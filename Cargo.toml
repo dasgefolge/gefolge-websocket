@@ -4,14 +4,32 @@ version = "0.1.0"
 authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2018"
 
+[lib]
+name = "gefolge_websocket"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gefolge-websocket"
+path = "src/main.rs"
+
 [dependencies]
+chrono = "0.4"
 futures = "0.3"
-pyo3 = "0.13"
+serde_json = "1"
 warp = "0.3"
 
 [dependencies.async-proto]
-version = "0.7"
+version = "0.8"
 features = ["warp"]
+
+[dependencies.chrono-tz]
+version = "0.6"
+features = ["serde"]
+
+[dependencies.ctrlflow]
+git = "https://github.com/fenhl/ctrlflow"
+branch = "main"
+features = ["fs"]
 
 [dependencies.derive_more]
 version = "0.99"
@@ -22,10 +40,22 @@ features = ["from"]
 git = "https://github.com/dasgefolge/gefolge-web-rust"
 branch = "main"
 
+[dependencies.pyo3]
+version = "0.14"
+features = ["auto-initialize"]
+
 [dependencies.ricochet-robots-websocket]
 git = "https://github.com/dasgefolge/ricochet-robots"
 branch = "main"
 
+[dependencies.serde]
+version = "1"
+features = ["derive"]
+
 [dependencies.tokio]
 version = "1"
 features = ["macros", "rt-multi-thread", "sync", "time"]
+
+[dependencies.wheel]
+git = "https://github.com/fenhl/wheel"
+branch = "main"

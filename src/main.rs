@@ -1,4 +1,4 @@
-#![deny(rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
+#![deny(rust_2018_idioms, unused, unused_import_braces, unused_lifetimes, unused_qualifications, warnings)]
 #![forbid(unsafe_code)]
 
 use {
@@ -7,18 +7,13 @@ use {
         sync::Arc,
         time::Duration,
     },
-    derive_more::From,
     futures::stream::{
         SplitSink,
         Stream,
         StreamExt as _,
     },
-    async_proto::{
-        Protocol,
-        ReadError,
-    },
+    async_proto::Protocol,
     gefolge_web::login::Mensch,
-    pyo3::PyErr,
     tokio::{
         sync::Mutex,
         time::sleep,
@@ -32,32 +27,13 @@ use {
             WebSocket,
         },
     },
+    gefolge_websocket::{
+        Error,
+        event,
+    },
 };
 
 type WsSink = Arc<Mutex<SplitSink<WebSocket, Message>>>;
-
-#[derive(Debug, From)]
-pub enum Error {
-    EndOfStream,
-    Python(PyErr),
-    Read(ReadError),
-    RicochetRobots(ricochet_robots_websocket::Error),
-    UnknownApiKey,
-    Warp(warp::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::EndOfStream => write!(f, "reached end of stream"),
-            Error::Python(e) => write!(f, "Python error: {}", e),
-            Error::Read(e) => e.fmt(f),
-            Error::RicochetRobots(e) => write!(f, "error in Ricochet Robots session: {}", e),
-            Error::UnknownApiKey => write!(f, "unknown API key"),
-            Error::Warp(e) => e.fmt(f),
-        }
-    }
-}
 
 #[derive(Protocol)]
 enum ServerMessage {
@@ -80,11 +56,12 @@ impl ServerMessage {
 #[derive(Protocol)]
 enum SessionPurpose {
     RicochetRobots,
+    CurrentEvent,
 }
 
-pub async fn client_session(mut stream: impl Stream<Item = Result<Message, warp::Error>> + Unpin + Send, sink: WsSink) -> Result<(), Error> {
+pub async fn client_session(event_flow: ctrlflow::Handle<event::Key>, mut stream: impl Stream<Item = Result<Message, warp::Error>> + Unpin + Send, sink: WsSink) -> Result<(), Error> {
     let api_key = String::read_warp(&mut stream).await?;
-    let user = Mensch::by_api_key(&api_key)?.ok_or(Error::UnknownApiKey)?; // verify API key
+    let user = Mensch::by_api_key(&api_key)?.ok_or(Error::UnknownApiKey)?; // verify API key TODO allow special device API key for CurrentEvent purpose
     let ping_sink = Arc::clone(&sink);
     tokio::spawn(async move {
         loop {
@@ -94,24 +71,26 @@ pub async fn client_session(mut stream: impl Stream<Item = Result<Message, warp:
     });
     match SessionPurpose::read_warp(&mut stream).await? {
         SessionPurpose::RicochetRobots => ricochet_robots_websocket::client_session(user, stream, sink).await?,
+        SessionPurpose::CurrentEvent => match event::client_session(event_flow, sink).await? {},
     }
     Ok(())
 }
 
-async fn client_connection(ws: WebSocket) {
+async fn client_connection(event_flow: ctrlflow::Handle<event::Key>, ws: WebSocket) {
     let (ws_sink, ws_stream) = ws.split();
     let ws_sink = Arc::new(Mutex::new(ws_sink));
-    if let Err(e) = client_session(ws_stream, Arc::clone(&ws_sink)).await {
+    if let Err(e) = client_session(event_flow, ws_stream, Arc::clone(&ws_sink)).await {
         let _ = ServerMessage::from_error(e).write_warp(&mut *ws_sink.lock().await).await;
     }
 }
 
-async fn ws_handler(ws: warp::ws::Ws) -> Result<impl Reply, Rejection> {
-    Ok(ws.on_upgrade(client_connection))
+async fn ws_handler(event_flow: ctrlflow::Handle<event::Key>, ws: warp::ws::Ws) -> Result<impl Reply, Rejection> {
+    Ok(ws.on_upgrade(|ws| client_connection(event_flow, ws)))
 }
 
 #[tokio::main]
 async fn main() {
-    let handler = warp::ws().and_then(ws_handler);
+    let event_flow = ctrlflow::run(event::Key).await;
+    let handler = warp::ws().and_then(move |ws| ws_handler(event_flow.clone(), ws));
     warp::serve(handler).run(([127, 0, 0, 1], 24802)).await;
 }
