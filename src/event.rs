@@ -1,6 +1,13 @@
 use {
     std::{
-        convert::Infallible as Never,
+        collections::HashSet,
+        convert::{
+            Infallible as Never,
+            TryInto as _,
+        },
+        ffi::OsString,
+        io,
+        iter,
         path::Path,
         pin::Pin,
         sync::Arc,
@@ -18,6 +25,7 @@ use {
             StreamExt as _,
         },
     },
+    git2::Repository,
     serde::Deserialize,
     tokio::{
         fs,
@@ -123,18 +131,15 @@ impl Event {
     }
 }
 
-pub struct State(Result<Option<String>, Error>);
+pub struct State {
+    event_id: Option<String>,
+    latest_version: [u8; 20],
+}
 
 impl State {
-    fn to_init_delta(&self) -> Delta {
-        match self {
-            State(Ok(Some(id))) => Delta::CurrentEvent(id.clone()),
-            State(Ok(None)) => Delta::NoEvent,
-            State(Err(e)) => Delta::Error {
-                debug: format!("{:?}", e),
-                display: e.to_string(),
-            },
-        }
+    fn to_init_deltas(&self) -> impl Iterator<Item = Delta> {
+        iter::once(Delta::LatestVersion(self.latest_version))
+            .chain(iter::once(if let Some(ref event_id) = self.event_id { Delta::CurrentEvent(event_id.clone()) } else { Delta::NoEvent }))
     }
 }
 
@@ -147,16 +152,18 @@ pub enum Delta {
     },
     NoEvent,
     CurrentEvent(String),
+    LatestVersion([u8; 20]),
 }
 
-impl ctrlflow::Delta<State> for Delta {
-    fn apply(&self, state: &mut State) {
-        if let Ok(ref mut state) = state.0 {
+impl ctrlflow::Delta<Result<State, Error>> for Delta {
+    fn apply(&self, state: &mut Result<State, Error>) {
+        if let Ok(state) = state {
             match self {
                 Delta::Ping => {}
                 Delta::Error { display, .. } => panic!("tried to apply error delta: {}", display),
-                Delta::NoEvent => *state = None,
-                Delta::CurrentEvent(id) => *state = Some(id.clone()),
+                Delta::NoEvent => state.event_id = None,
+                Delta::CurrentEvent(id) => state.event_id = Some(id.clone()),
+                Delta::LatestVersion(commit_hash) => state.latest_version = *commit_hash,
             }
         }
     }
@@ -165,43 +172,43 @@ impl ctrlflow::Delta<State> for Delta {
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Key;
 
+async fn init(mut events_dir_states: Pin<&mut impl Stream<Item = Result<HashSet<OsString>, Arc<io::Error>>>>) -> Result<State, Error> {
+    let now = Utc::now();
+    let init = events_dir_states.next().await.expect("empty dir states stream").at(DATA_PATH)?;
+    let mut current_event = None;
+    for filename in init {
+        let event_id = filename.into_string()?.strip_suffix(".json").ok_or(Error::NonJsonEventFile)?.to_owned();
+        let event = Event::load(event_id).await?;
+        if let (Some(start), Some(end)) = (event.start().await?, event.end().await?) {
+            if start <= now && now < end {
+                if current_event.is_none() {
+                    current_event = Some(event);
+                } else {
+                    return Err(Error::MultipleCurrentEvents)
+                }
+            }
+        }
+    }
+    Ok(State {
+        event_id: current_event.map(|event| event.id),
+        latest_version: Repository::open("/opt/git/github.com/dasgefolge/sil/master")?.head()?.peel_to_commit()?.id().as_bytes().try_into()?,
+    })
+}
+
 impl ctrlflow::Key for Key {
-    type State = State;
+    type State = Result<State, Error>;
     type Delta = Delta;
 
-    fn maintain(self, runner: ctrlflow::RunnerInternal) -> Pin<Box<dyn Future<Output = (State, Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>)> + Send + 'static>> {
-        macro_rules! try_init {
-            ($e:expr) => {
-                match $e {
-                    Ok(value) => value,
-                    Err(e) => return (State(Err(e.into())), Box::pin(stream::empty()) as Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>),
-                }
-            };
-            (@io $e:expr) => { try_init!($e.at_unknown()) };
-        }
-
+    fn maintain(self, runner: ctrlflow::RunnerInternal) -> Pin<Box<dyn Future<Output = (Result<State, Error>, Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>)> + Send + 'static>> {
         Box::pin(async move {
-            let now = Utc::now();
             let events_path = Path::new(DATA_PATH);
             let events_dir = runner.subscribe(ctrlflow::fs::Dir(events_path.to_owned())).await.expect("dependency loop");
             let events_dir_states = events_dir.states();
             pin_mut!(events_dir_states);
-            let init = try_init!(@io events_dir_states.next().await.expect("empty dir states stream"));
-            let mut current_event = None;
-            for filename in init {
-                let event_id = try_init!(try_init!(filename.into_string()).strip_suffix(".json").ok_or(Error::NonJsonEventFile)).to_owned();
-                let event = try_init!(Event::load(event_id).await);
-                if let (Some(start), Some(end)) = (try_init!(event.start().await), try_init!(event.end().await)) {
-                    if start <= now && now < end {
-                        if current_event.is_none() {
-                            current_event = Some(event);
-                        } else {
-                            try_init!(Err(Error::MultipleCurrentEvents))
-                        }
-                    }
-                }
+            match init(events_dir_states).await {
+                Ok(init) => (Ok(init), Box::pin(stream::empty()) as Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>), //TODO update current event if events dir or any file contents change or at the end of the current event; update latest version as a gitdir post-deploy hook (after making sure it has been built on reiwa)
+                Err(e) => (Err(e), Box::pin(stream::empty()) as Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>),
             }
-            (State(Ok(current_event.map(|event| event.id))), Box::pin(stream::empty())) //TODO periodically update current event
         })
     }
 }
@@ -210,7 +217,15 @@ type WsSink = Arc<Mutex<SplitSink<WebSocket, Message>>>;
 
 pub async fn client_session(flow: ctrlflow::Handle<Key>, sink: WsSink) -> Result<Never, Error> {
     let (init, mut deltas) = flow.stream().await;
-    init.to_init_delta().write_warp(&mut *sink.lock().await).await?;
+    match *init {
+        Ok(ref state) => for delta in state.to_init_deltas() {
+            delta.write_warp(&mut *sink.lock().await).await?;
+        },
+        Err(ref e) => {
+            let delta = Delta::Error { debug: format!("{:?}", e), display: e.to_string() };
+            delta.write_warp(&mut *sink.lock().await).await?;
+        }
+    }
     loop {
         let delta = deltas.recv().await?;
         delta.write_warp(&mut *sink.lock().await).await?;

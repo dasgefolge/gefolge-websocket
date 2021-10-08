@@ -15,6 +15,7 @@ path = "src/main.rs"
 [dependencies]
 chrono = "0.4"
 futures = "0.3"
+git2 = "0.13"
 serde_json = "1"
 warp = "0.3"
 
@@ -45,7 +46,7 @@ version = "0.14"
 features = ["auto-initialize"]
 
 [dependencies.ricochet-robots-websocket]
-git = "https://github.com/dasgefolge/ricochet-robots"
+git = "ssh://git@github.com/dasgefolge/ricochet-robots.git"
 branch = "main"
 
 [dependencies.serde]

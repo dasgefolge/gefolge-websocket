@@ -3,6 +3,7 @@
 
 use {
     std::{
+        array,
         ffi::OsString,
         fmt,
         io,
@@ -29,8 +30,10 @@ pub mod event;
 pub enum Error {
     #[from(ignore)]
     AmbiguousTimestamp(DateTime<Tz>, DateTime<Tz>),
+    ArrayFromSlice(array::TryFromSliceError),
     Broadcast(tokio::sync::broadcast::error::RecvError),
     EndOfStream,
+    Git(git2::Error),
     InvalidTimestamp,
     Io(Arc<io::Error>, Option<PathBuf>),
     Json(serde_json::Error, Option<PathBuf>),
@@ -49,8 +52,10 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::AmbiguousTimestamp(dt1, dt2) => write!(f, "ambiguous timestamp: could refer to {} or {} UTC", dt1.with_timezone(&Utc).format("%Y-%m-%d %H:%M:%S"), dt2.with_timezone(&Utc).format("%Y-%m-%d %H:%M:%S")),
+            Error::ArrayFromSlice(e) => e.fmt(f),
             Error::Broadcast(e) => e.fmt(f),
             Error::EndOfStream => write!(f, "reached end of stream"),
+            Error::Git(e) => write!(f, "git error: {}", e),
             Error::InvalidTimestamp => write!(f, "invalid timestamp"),
             Error::Io(e, Some(path)) => write!(f, "I/O error at {}: {}", path.display(), e),
             Error::Io(e, None) => write!(f, "I/O error: {}", e),
