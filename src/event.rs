@@ -47,18 +47,14 @@ const LOCATIONS_PATH: &str = "/usr/local/share/fidera/loc";
 
 #[derive(Deserialize)]
 struct Location {
-    #[serde(skip)]
-    id: String,
     timezone: Tz,
 }
 
 impl Location {
-    async fn load(loc_id: String) -> Result<Self, Error> {
+    async fn load(loc_id: &str) -> Result<Self, Error> {
         let loc_path = Path::new(LOCATIONS_PATH).join(format!("{}.json", loc_id));
         let buf = fs::read_to_string(&loc_path).await.at(&loc_path)?;
-        let mut location = serde_json::from_str::<Self>(&buf).at(loc_path)?;
-        location.id = loc_id;
-        Ok(location)
+        Ok(serde_json::from_str::<Self>(&buf).at(loc_path)?)
     }
 }
 
@@ -72,46 +68,45 @@ impl LocationInfo {
     fn timezone(&self) -> Tz {
         match self {
             Self::Unknown | Self::Online => chrono_tz::Europe::Berlin,
-            Self::Known(location) => location.timezone,
+            Self::Known(info) => info.timezone,
         }
     }
 }
 
 #[derive(Deserialize)]
-struct Event {
-    #[serde(skip)]
-    id: String,
+struct EventJson {
     end: Option<NaiveDateTime>,
     location: Option<String>,
     start: Option<NaiveDateTime>,
     timezone: Option<Tz>,
 }
 
-impl Event {
-    async fn load(event_id: String) -> Result<Self, Error> {
+impl EventJson {
+    async fn load(event_id: &str) -> Result<Self, Error> {
         let event_path = Path::new(DATA_PATH).join(format!("{}.json", event_id));
         let buf = fs::read_to_string(&event_path).await.at(&event_path)?;
-        let mut event = serde_json::from_str::<Self>(&buf).at(event_path)?;
-        event.id = event_id;
-        Ok(event)
+        Ok(serde_json::from_str::<Self>(&buf).at(event_path)?)
     }
 
     async fn location_info(&self) -> Result<LocationInfo, Error> {
         Ok(match self.location.as_deref() {
             Some("online") => LocationInfo::Online,
-            Some(name) => LocationInfo::Known(Location::load(name.to_owned()).await?),
-            None => LocationInfo::Unknown
+            Some(name) => LocationInfo::Known(Location::load(name).await?),
+            None => LocationInfo::Unknown,
+        })
+    }
+
+    async fn timezone(&self) -> Result<Tz, Error> {
+        Ok(if let Some(timezone) = self.timezone {
+            timezone
+        } else {
+            self.location_info().await?.timezone()
         })
     }
 
     async fn start(&self) -> Result<Option<DateTime<Tz>>, Error> {
         Ok(if let Some(start_naive) = self.start {
-            let timezone = if let Some(timezone) = self.timezone {
-                timezone
-            } else {
-                self.location_info().await?.timezone()
-            };
-            Some(timezone.from_local_datetime(&start_naive).into_result()?)
+            Some(self.timezone().await?.from_local_datetime(&start_naive).into_result()?)
         } else {
             None
         })
@@ -119,27 +114,37 @@ impl Event {
 
     async fn end(&self) -> Result<Option<DateTime<Tz>>, Error> {
         Ok(if let Some(end_naive) = self.end {
-            let timezone = if let Some(timezone) = self.timezone {
-                timezone
-            } else {
-                self.location_info().await?.timezone()
-            };
-            Some(timezone.from_local_datetime(&end_naive).into_result()?)
+            Some(self.timezone().await?.from_local_datetime(&end_naive).into_result()?)
         } else {
             None
         })
     }
 }
 
+#[derive(Clone, Protocol)]
+pub struct Event {
+    pub id: String,
+    pub timezone: Tz,
+}
+
+impl Event {
+    async fn new(id: String, info: EventJson) -> Result<Self, Error> {
+        Ok(Self {
+            id,
+            timezone: info.timezone().await?,
+        })
+    }
+}
+
 pub struct State {
-    event_id: Option<String>,
+    event: Option<Event>,
     latest_version: [u8; 20],
 }
 
 impl State {
     fn to_init_deltas(&self) -> impl Iterator<Item = Delta> {
         iter::once(Delta::LatestVersion(self.latest_version))
-            .chain(iter::once(if let Some(ref event_id) = self.event_id { Delta::CurrentEvent(event_id.clone()) } else { Delta::NoEvent }))
+            .chain(iter::once(if let Some(ref event) = self.event { Delta::CurrentEvent(event.clone()) } else { Delta::NoEvent }))
     }
 }
 
@@ -151,7 +156,7 @@ pub enum Delta {
         display: String,
     },
     NoEvent,
-    CurrentEvent(String),
+    CurrentEvent(Event),
     LatestVersion([u8; 20]),
 }
 
@@ -161,8 +166,8 @@ impl ctrlflow::Delta<Result<State, Error>> for Delta {
             match self {
                 Delta::Ping => {}
                 Delta::Error { display, .. } => panic!("tried to apply error delta: {}", display),
-                Delta::NoEvent => state.event_id = None,
-                Delta::CurrentEvent(id) => state.event_id = Some(id.clone()),
+                Delta::NoEvent => state.event = None,
+                Delta::CurrentEvent(event) => state.event = Some(event.clone()),
                 Delta::LatestVersion(commit_hash) => state.latest_version = *commit_hash,
             }
         }
@@ -178,11 +183,11 @@ async fn init(mut events_dir_states: Pin<&mut impl Stream<Item = Result<HashSet<
     let mut current_event = None;
     for filename in init {
         let event_id = filename.into_string()?.strip_suffix(".json").ok_or(Error::NonJsonEventFile)?.to_owned();
-        let event = Event::load(event_id).await?;
+        let event = EventJson::load(&event_id).await?;
         if let (Some(start), Some(end)) = (event.start().await?, event.end().await?) {
             if start <= now && now < end {
                 if current_event.is_none() {
-                    current_event = Some(event);
+                    current_event = Some(Event::new(event_id, event).await?);
                 } else {
                     return Err(Error::MultipleCurrentEvents)
                 }
@@ -190,7 +195,7 @@ async fn init(mut events_dir_states: Pin<&mut impl Stream<Item = Result<HashSet<
         }
     }
     Ok(State {
-        event_id: current_event.map(|event| event.id),
+        event: current_event,
         latest_version: Repository::open("/opt/git/github.com/dasgefolge/sil/master")?.head()?.peel_to_commit()?.id().as_bytes().try_into()?,
     })
 }

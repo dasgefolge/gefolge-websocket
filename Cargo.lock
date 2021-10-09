@@ -8,7 +8,21 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78b0af1b60640b4ee4ba3b538a0db8c23b3cf70f3029485e728b795748e0d383"
 dependencies = [
- "async-proto-derive",
+ "async-proto-derive 0.8.5",
+ "derive_more",
+ "futures",
+ "tokio",
+ "warp",
+]
+
+[[package]]
+name = "async-proto"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22511080e44b2fb0a20eba355e5b3991b68f1223c72eb4a34ee5bad7cca65863"
+dependencies = [
+ "async-proto-derive 0.9.0",
+ "chrono-tz",
  "derive_more",
  "futures",
  "tokio",
@@ -20,6 +34,18 @@ name = "async-proto-derive"
 version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5502e67ffc39959fae1643d08d18f5a0dcdd58f30f16cd4d4ed269d17eb0331b"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "async-proto-derive"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91a58dde85238fe49eb32d9aa91bce57e06fd53eae4ffae75d54fa6805012ffa"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -413,7 +439,7 @@ dependencies = [
 name = "gefolge-websocket"
 version = "0.1.0"
 dependencies = [
- "async-proto",
+ "async-proto 0.9.0",
  "chrono",
  "chrono-tz",
  "ctrlflow",
@@ -1357,7 +1383,7 @@ name = "ricochet-robots"
 version = "0.1.0"
 source = "git+ssh://git@github.com/dasgefolge/ricochet-robots.git?branch=main#574efbf02b180e4f45837859c2cb16b1921067cd"
 dependencies = [
- "async-proto",
+ "async-proto 0.8.5",
  "collect-mac",
  "enum-iterator",
  "futures",
@@ -1370,7 +1396,7 @@ name = "ricochet-robots-websocket"
 version = "0.1.0"
 source = "git+ssh://git@github.com/dasgefolge/ricochet-robots.git?branch=main#574efbf02b180e4f45837859c2cb16b1921067cd"
 dependencies = [
- "async-proto",
+ "async-proto 0.8.5",
  "derive_more",
  "futures",
  "gefolge-web",
