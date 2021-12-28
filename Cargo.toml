@@ -20,7 +20,7 @@ serde_json = "1"
 warp = "0.3"
 
 [dependencies.async-proto]
-version = "0.9"
+version = "0.11"
 features = ["chrono-tz", "warp"]
 
 [dependencies.chrono-tz]
@@ -42,7 +42,7 @@ git = "https://github.com/dasgefolge/gefolge-web-rust"
 branch = "main"
 
 [dependencies.pyo3]
-version = "0.14"
+version = "0.15"
 features = ["auto-initialize"]
 
 [dependencies.ricochet-robots-websocket]
