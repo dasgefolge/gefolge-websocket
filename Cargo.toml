@@ -13,15 +13,18 @@ name = "gefolge-websocket"
 path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4"
 futures = "0.3"
-git2 = "0.13"
+git2 = "0.15"
 serde_json = "1"
 warp = "0.3"
 
 [dependencies.async-proto]
-version = "0.11"
+version = "0.15"
 features = ["chrono-tz", "warp"]
+
+[dependencies.chrono]
+version = "0.4"
+features = ["serde"]
 
 [dependencies.chrono-tz]
 version = "0.6"
@@ -42,7 +45,7 @@ git = "https://github.com/dasgefolge/gefolge-web-rust"
 branch = "main"
 
 [dependencies.pyo3]
-version = "0.15"
+version = "0.16"
 features = ["auto-initialize"]
 
 [dependencies.ricochet-robots-websocket]

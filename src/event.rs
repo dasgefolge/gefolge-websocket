@@ -204,7 +204,7 @@ impl ctrlflow::Key for Key {
     type State = Result<State, Error>;
     type Delta = Delta;
 
-    fn maintain(self, runner: ctrlflow::RunnerInternal) -> Pin<Box<dyn Future<Output = (Result<State, Error>, Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>)> + Send + 'static>> {
+    fn maintain(self, runner: ctrlflow::RunnerInternal<Self>) -> Pin<Box<dyn Future<Output = (Result<State, Error>, Pin<Box<dyn Stream<Item = Delta> + Send + 'static>>)> + Send + 'static>> {
         Box::pin(async move {
             let events_path = Path::new(DATA_PATH);
             let events_dir = runner.subscribe(ctrlflow::fs::Dir(events_path.to_owned())).await.expect("dependency loop");
