@@ -1,4 +1,8 @@
 use {
+    async_proto::Protocol,
+    chrono_tz::Tz,
+};
+#[cfg(feature = "ctrlflow")] use {
     std::{
         collections::HashSet,
         convert::{
@@ -12,9 +16,7 @@ use {
         pin::Pin,
         sync::Arc,
     },
-    async_proto::Protocol,
     chrono::prelude::*,
-    chrono_tz::Tz,
     futures::{
         future::Future,
         pin_mut,
@@ -42,14 +44,16 @@ use {
     },
 };
 
-const DATA_PATH: &str = "/usr/local/share/fidera/event";
-const LOCATIONS_PATH: &str = "/usr/local/share/fidera/loc";
+#[cfg(feature = "ctrlflow")] const DATA_PATH: &str = "/usr/local/share/fidera/event";
+#[cfg(feature = "ctrlflow")] const LOCATIONS_PATH: &str = "/usr/local/share/fidera/loc";
 
+#[cfg(feature = "ctrlflow")]
 #[derive(Deserialize)]
 struct Location {
     timezone: Tz,
 }
 
+#[cfg(feature = "ctrlflow")]
 impl Location {
     async fn load(loc_id: &str) -> Result<Self, Error> {
         let loc_path = Path::new(LOCATIONS_PATH).join(format!("{}.json", loc_id));
@@ -58,12 +62,14 @@ impl Location {
     }
 }
 
+#[cfg(feature = "ctrlflow")]
 enum LocationInfo {
     Unknown,
     Online,
     Known(Location),
 }
 
+#[cfg(feature = "ctrlflow")]
 impl LocationInfo {
     fn timezone(&self) -> Tz {
         match self {
@@ -73,6 +79,7 @@ impl LocationInfo {
     }
 }
 
+#[cfg(feature = "ctrlflow")]
 #[derive(Deserialize)]
 struct EventJson {
     end: Option<NaiveDateTime>,
@@ -81,6 +88,7 @@ struct EventJson {
     timezone: Option<Tz>,
 }
 
+#[cfg(feature = "ctrlflow")]
 impl EventJson {
     async fn load(event_id: &str) -> Result<Self, Error> {
         let event_path = Path::new(DATA_PATH).join(format!("{}.json", event_id));
@@ -127,6 +135,7 @@ pub struct Event {
     pub timezone: Tz,
 }
 
+#[cfg(feature = "ctrlflow")]
 impl Event {
     async fn new(id: String, info: EventJson) -> Result<Self, Error> {
         Ok(Self {
@@ -136,11 +145,13 @@ impl Event {
     }
 }
 
+#[cfg(feature = "ctrlflow")]
 pub struct State {
     event: Option<Event>,
     latest_version: [u8; 20],
 }
 
+#[cfg(feature = "ctrlflow")]
 impl State {
     fn to_init_deltas(&self) -> impl Iterator<Item = Delta> {
         iter::once(Delta::LatestVersion(self.latest_version))
@@ -160,6 +171,7 @@ pub enum Delta {
     LatestVersion([u8; 20]),
 }
 
+#[cfg(feature = "ctrlflow")]
 impl ctrlflow::Delta<Result<State, Error>> for Delta {
     fn apply(&self, state: &mut Result<State, Error>) {
         if let Ok(state) = state {
@@ -174,9 +186,11 @@ impl ctrlflow::Delta<Result<State, Error>> for Delta {
     }
 }
 
+#[cfg(feature = "ctrlflow")]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Key;
 
+#[cfg(feature = "ctrlflow")]
 async fn init(mut events_dir_states: Pin<&mut impl Stream<Item = Result<HashSet<OsString>, Arc<io::Error>>>>) -> Result<State, Error> {
     let now = Utc::now();
     let init = events_dir_states.next().await.expect("empty dir states stream").at(DATA_PATH)?;
@@ -196,10 +210,11 @@ async fn init(mut events_dir_states: Pin<&mut impl Stream<Item = Result<HashSet<
     }
     Ok(State {
         event: current_event,
-        latest_version: Repository::open("/opt/git/github.com/dasgefolge/sil/master")?.head()?.peel_to_commit()?.id().as_bytes().try_into()?,
+        latest_version: Repository::open("/opt/git/github.com/dasgefolge/sil/master")?.head()?.peel_to_commit()?.id().as_bytes().try_into()?, //TODO keep up to date
     })
 }
 
+#[cfg(feature = "ctrlflow")]
 impl ctrlflow::Key for Key {
     type State = Result<State, Error>;
     type Delta = Delta;
@@ -218,8 +233,10 @@ impl ctrlflow::Key for Key {
     }
 }
 
+#[cfg(feature = "ctrlflow")]
 type WsSink = Arc<Mutex<SplitSink<WebSocket, Message>>>;
 
+#[cfg(feature = "ctrlflow")]
 pub async fn client_session(flow: ctrlflow::Handle<Key>, sink: WsSink) -> Result<Never, Error> {
     let (init, mut deltas) = flow.stream().await;
     match *init {

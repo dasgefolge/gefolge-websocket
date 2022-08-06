@@ -34,6 +34,7 @@ features = ["serde"]
 git = "https://github.com/fenhl/ctrlflow"
 branch = "main"
 features = ["fs"]
+optional = true
 
 [dependencies.derive_more]
 version = "0.99"
