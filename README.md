@@ -1,3 +1,5 @@
+**Maintenance notice:** Dieses Projekt wurde in <https://github.com/dasgefolge/gefolge.org> integriert.
+
 Dieses Projekt ist ein [WebSocket](https://en.wikipedia.org/wiki/WebSocket) server für [die gefolge.org API](https://gefolge.org/api).
 
 # Protokoll
